@@ -53,7 +53,11 @@ def run(ctx: Context) -> Timeline:
     log("tts", f"synthesizing {len(script.segments)} segments ({'mock' if ctx.mock else cfg.language})")
     for i, seg in enumerate(script.segments):
         dest = ctx.audio_dir / f"seg-{i:02d}.mp3"
-        if ctx.mock:
+        if not seg.text.strip():
+            # Defensive: never hand edge-tts an empty string.
+            audio = AudioSegment.silent(duration=400)
+            audio.export(dest, format="mp3")
+        elif ctx.mock:
             audio = _synth_mock(seg.text, dest)
         else:
             audio = _synth_real(seg.text, cfg.voices[seg.speaker], dest)
