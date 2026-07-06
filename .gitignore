@@ -1,0 +1,18 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+pipeline/work/
+
+# Node / Remotion
+node_modules/
+video/out/
+video/.remotion/
+video/public/render/
+
+# Secrets & local env
+.env
+*.local
+
+# OS
+.DS_Store

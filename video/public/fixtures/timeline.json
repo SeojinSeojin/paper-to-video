@@ -1,0 +1,101 @@
+{
+  "language": "en",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "paper": {
+    "title": "Efficient Transformers via Learned Sparse Attention",
+    "authors": [
+      "A. Rivera",
+      "K. Sato",
+      "L. Meyer",
+      "P. Osei"
+    ],
+    "year": "2024",
+    "arxivId": "2401.01234",
+    "url": "https://arxiv.org/abs/2401.01234"
+  },
+  "channelName": "paper2video",
+  "accent": "#7C6CFF",
+  "background": "#0E0E12",
+  "intro": {
+    "durationMs": 3000
+  },
+  "outro": {
+    "durationMs": 3000
+  },
+  "segments": [
+    {
+      "index": 0,
+      "speaker": "A",
+      "text": "So this paper claims transformers can be made dramatically faster. Is that actually true?",
+      "startMs": 0,
+      "endMs": 5884,
+      "figure": null,
+      "image": null,
+      "attribution": null
+    },
+    {
+      "index": 1,
+      "speaker": "B",
+      "text": "Mostly, yes. The trick is to attend to a learned subset of tokens instead of all of them.",
+      "startMs": 6234,
+      "endMs": 13657,
+      "figure": 1,
+      "image": "images/figure-1.png",
+      "attribution": "Figure 1 — Rivera et al., 2024 (arXiv:2401.01234)"
+    },
+    {
+      "index": 2,
+      "speaker": "A",
+      "text": "So instead of every word looking at every other word, the model picks a few important ones?",
+      "startMs": 14007,
+      "endMs": 21045,
+      "figure": 1,
+      "image": "images/figure-1.png",
+      "attribution": "Figure 1 — Rivera et al., 2024 (arXiv:2401.01234)"
+    },
+    {
+      "index": 3,
+      "speaker": "B",
+      "text": "Exactly. Figure two shows the sparsity pattern the model discovers on its own during training.",
+      "startMs": 21395,
+      "endMs": 27664,
+      "figure": 2,
+      "image": "images/figure-2.png",
+      "attribution": "Figure 2 — Rivera et al., 2024 (arXiv:2401.01234)"
+    },
+    {
+      "index": 4,
+      "speaker": "A",
+      "text": "And that grid is what saves all the computation?",
+      "startMs": 28014,
+      "endMs": 31975,
+      "figure": 2,
+      "image": "images/figure-2.png",
+      "attribution": "Figure 2 — Rivera et al., 2024 (arXiv:2401.01234)"
+    },
+    {
+      "index": 5,
+      "speaker": "B",
+      "text": "Right. The cost drops from quadratic to almost linear, with barely any accuracy loss.",
+      "startMs": 32325,
+      "endMs": 38209,
+      "figure": null,
+      "image": null,
+      "attribution": null
+    },
+    {
+      "index": 6,
+      "speaker": "A",
+      "text": "That is a genuinely great tradeoff. Thanks for breaking it down so clearly.",
+      "startMs": 38559,
+      "endMs": 44059,
+      "figure": null,
+      "image": null,
+      "attribution": null
+    }
+  ],
+  "audio": "audio/final.mp3",
+  "totalMs": 50059
+}

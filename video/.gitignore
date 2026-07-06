@@ -1,0 +1,6 @@
+node_modules/
+out/
+.remotion/
+# staged render data (produced by the pipeline, not source)
+public/render/
+.venv/
