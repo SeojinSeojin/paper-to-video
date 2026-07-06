@@ -40,8 +40,48 @@ within each area. "UNVERIFIED" marks anything that needs the owner's secrets.
 - **Speaker names**: Host (A) / Guest (B) in English, 진행자 / 설명자 in Korean.
   A asks, B explains, per the brief.
 
-## Pipeline (see also each module)
-- (filled in during Phase 2)
+## Pipeline
+- **Mock mode scope**: `--mock` stubs only the stages with external
+  dependencies — ingest (no download), script_gen (no Gemini), tts (no edge-tts
+  network), upload (no YouTube). **figures and render always run for real**, so
+  the mocked chain genuinely exercises PyMuPDF extraction and the Remotion
+  render. Verified: `run.py --stage all --mock` produces a real MP4, and figures
+  were extracted as `source: "embedded"` from the mock PDF.
+- **Mock PDF**: `mock_data.build_mock_pdf` embeds the two committed fixture
+  figures with real "Figure N" captions (via PyMuPDF), so extraction has
+  something authentic to find offline.
+- **Heavy deps are lazy-imported** (`google.genai`, `edge_tts`,
+  `googleapiclient`, `PIL` in places) so `--mock` runs without them / without
+  keys. They are still listed in `requirements.txt` for real runs.
+- **Gemini**: model `gemini-2.5-flash` (configurable via `gemini_model` /
+  `GEMINI_MODEL`), new `google-genai` SDK (`from google import genai`), PDF sent
+  inline as `types.Part.from_bytes` when ≤18MB else via the Files API. Structured
+  output uses `response_mime_type="application/json"` + `response_schema=Script`
+  (a pydantic model). One repair retry on invalid JSON. UNVERIFIED (needs
+  GEMINI_API_KEY) — code path is complete but not run against the live API.
+- **Figure extraction heuristic**: find each referenced figure's "Figure N"
+  caption, then (1) prefer a large embedded image above it, (2) else render the
+  page region above the caption (handles vector figures), (3) else a typographic
+  keyword card (Pillow). Fallback cards carry **no** arXiv attribution to avoid
+  over-claiming that a synthetic card is the paper's figure.
+- **TTS**: edge-tts per segment; exact duration measured by loading the saved
+  mp3 with pydub (no reliance on WordBoundary events). 350ms silence between
+  segments; concatenated to `audio/final.mp3`. Verified with real
+  en-US-AvaNeural / ko-KR-SunHiNeural synthesis and a real timeline build.
+- **Render staging**: `run.py` copies `timeline.json` + `audio/final.mp3` +
+  `figures/*.png` into `video/public/render/{,audio,images}` and runs
+  `npx remotion render PaperVideo <out> --props={"dataDir":"render"}`.
+- **State/dedupe**: `state/processed.json` is a JSON list; entries keyed by
+  normalized URL (`arxiv:<id>` when possible). `run.py --stage check --url ...`
+  prints NEW/PROCESSED for the workflow's guard. Marked only after a real upload.
 
 ## Upload
-- (filled in during Phase 2)
+- YouTube Data API v3 `videos.insert`, OAuth **refresh-token** flow built from
+  `YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN` env (google-auth `Credentials`).
+  Resumable `MediaFileUpload`. Cost ~1600 units / default 10,000 daily quota.
+  Scope `youtube.upload`. privacyStatus **always `private`** under CI
+  (`os.environ["CI"]`). `get_refresh_token.py` does the one-time local consent
+  (`run_local_server`, access_type=offline, prompt=consent). UNVERIFIED (needs
+  YouTube OAuth secrets).
+- Description = summary + paper title/authors + arXiv link + "Figures from the
+  original paper, © original authors". Tags from keywords, clamped to ~460 chars.

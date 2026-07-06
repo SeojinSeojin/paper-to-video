@@ -1,0 +1,32 @@
+# paper2video configuration. Read by the Python pipeline; theme + language are
+# forwarded into timeline.json so the Remotion renderer stays in sync.
+
+language: ko            # default target language: ko | en (issue body can override with "lang: en")
+
+voices:
+  ko:
+    hostA: ko-KR-SunHiNeural    # Host A (asks / reacts)
+    hostB: ko-KR-InJoonNeural   # Host B (explains)
+  en:
+    hostA: en-US-AvaNeural
+    hostB: en-US-AndrewNeural
+
+theme:
+  accent: "#7C6CFF"
+  background: "#0E0E12"
+
+channel_name: paper2video
+
+target_duration_min: 5
+
+# Gemini model used for script generation (free-tier, PDF input + JSON output).
+gemini_model: gemini-2.5-flash
+
+# YouTube upload. privacy is ALWAYS private in CI regardless of this default.
+upload_privacy: private
+upload_category_id: "27"   # 27 = Education
+
+# Inter-segment silence inserted by the TTS stage.
+segment_gap_ms: 350
+intro_ms: 3000
+outro_ms: 3000
