@@ -1,0 +1,167 @@
+name: Generate paper video
+
+on:
+  issues:
+    types: [opened, labeled]
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "arXiv abstract/PDF URL or direct PDF URL"
+        required: true
+      lang:
+        description: "Language override (ko | en). Leave blank for config default."
+        required: false
+        default: ""
+
+# Least privilege needed: comment/close issues and commit processed.json back.
+permissions:
+  issues: write
+  contents: write
+
+concurrency:
+  group: paper2video-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    # Run for manual dispatch, or for issues carrying the "video-request" label.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' &&
+       contains(github.event.issue.labels.*.name, 'video-request'))
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install system deps (ffmpeg + Chrome libs for Remotion)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2t64 \
+            libxrandr2 libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 \
+            libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2 || \
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2 \
+            libxrandr2 libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 \
+            libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2
+
+      - name: Install Python deps
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Install Node deps
+        working-directory: video
+        run: npm ci
+
+      - name: Parse request
+        id: parse
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          INPUT_URL: ${{ github.event.inputs.url }}
+          INPUT_LANG: ${{ github.event.inputs.lang }}
+        run: python .github/scripts/parse_request.py >> "$GITHUB_OUTPUT"
+
+      - name: Comment — started
+        if: github.event_name == 'issues'
+        run: |
+          gh issue comment "$ISSUE" --body "🎬 **paper2video** started for \`${{ steps.parse.outputs.url }}\`.
+          Follow progress in the [Actions run]($RUN_URL)."
+
+      - name: Dedupe check
+        id: check
+        run: |
+          STATUS=$(python pipeline/run.py --stage check --url "${{ steps.parse.outputs.url }}")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "Dedupe status: $STATUS"
+
+      - name: Comment — already processed
+        if: github.event_name == 'issues' && steps.check.outputs.status == 'PROCESSED'
+        run: |
+          gh issue comment "$ISSUE" --body "ℹ️ This paper was already processed — skipping. See \`state/processed.json\`."
+          gh issue close "$ISSUE" --reason completed || true
+
+      - name: Ingest + script
+        if: steps.check.outputs.status != 'PROCESSED'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python pipeline/run.py --stage ingest --url "${{ steps.parse.outputs.url }}" --lang "${{ steps.parse.outputs.lang }}"
+          python pipeline/run.py --stage script --lang "${{ steps.parse.outputs.lang }}"
+
+      - name: Comment — script ready
+        if: github.event_name == 'issues' && steps.check.outputs.status != 'PROCESSED'
+        run: |
+          TITLE=$(python -c "import json;print(json.load(open('pipeline/work/script.json'))['title'])")
+          gh issue comment "$ISSUE" --body "📝 Script generated: **$TITLE**. Extracting figures and synthesizing audio…"
+
+      - name: Figures + TTS
+        if: steps.check.outputs.status != 'PROCESSED'
+        run: |
+          python pipeline/run.py --stage figures --lang "${{ steps.parse.outputs.lang }}"
+          python pipeline/run.py --stage tts --lang "${{ steps.parse.outputs.lang }}"
+
+      - name: Comment — rendering
+        if: github.event_name == 'issues' && steps.check.outputs.status != 'PROCESSED'
+        run: gh issue comment "$ISSUE" --body "🎞️ Rendering the video with Remotion…"
+
+      - name: Render
+        if: steps.check.outputs.status != 'PROCESSED'
+        run: python pipeline/run.py --stage render --lang "${{ steps.parse.outputs.lang }}"
+
+      - name: Upload to YouTube
+        id: upload
+        if: steps.check.outputs.status != 'PROCESSED'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          python pipeline/run.py --stage upload --lang "${{ steps.parse.outputs.lang }}"
+          echo "video_url=$(python -c "import json;print(json.load(open('pipeline/work/result.json')).get('url',''))")" >> "$GITHUB_OUTPUT"
+
+      - name: Commit processed state
+        if: steps.check.outputs.status != 'PROCESSED'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/processed.json
+          if git diff --cached --quiet; then
+            echo "No state change to commit."
+          else
+            git commit -m "chore: mark ${{ steps.parse.outputs.url }} processed [skip ci]"
+            git push
+          fi
+
+      - name: Comment — uploaded + close
+        if: github.event_name == 'issues' && steps.check.outputs.status != 'PROCESSED'
+        run: |
+          gh issue comment "$ISSUE" --body "✅ Uploaded (private): ${{ steps.upload.outputs.video_url }}
+          The video is private by default — set it to unlisted/public in YouTube Studio when ready."
+          gh issue close "$ISSUE" --reason completed || true
+
+      - name: Upload MP4 artifact
+        if: always() && steps.check.outputs.status != 'PROCESSED'
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-video
+          path: pipeline/work/out.mp4
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Comment — failure
+        if: failure() && github.event_name == 'issues'
+        run: |
+          gh issue comment "$ISSUE" --body "❌ Generation failed. See the [Actions run]($RUN_URL) for logs."
