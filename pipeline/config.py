@@ -26,9 +26,12 @@ class Config:
     upload_privacy: str
     upload_category_id: str
     segment_gap_ms: int
+    paper_gap_ms: int
     intro_ms: int
     outro_ms: int
     target_duration_min: int
+    digest_title: str
+    digest_duration_min_per_paper: float
 
     @property
     def voices(self) -> dict:
@@ -60,7 +63,10 @@ def load_config(language: Optional[str] = None) -> Config:
         upload_privacy=os.environ.get("UPLOAD_PRIVACY", data.get("upload_privacy", "private")),
         upload_category_id=str(data.get("upload_category_id", "27")),
         segment_gap_ms=int(data.get("segment_gap_ms", 350)),
+        paper_gap_ms=int(data.get("paper_gap_ms", 900)),
         intro_ms=int(data.get("intro_ms", 3000)),
         outro_ms=int(data.get("outro_ms", 3000)),
         target_duration_min=int(data.get("target_duration_min", 5)),
+        digest_title=str(data.get("digest_title", "Paper Digest")),
+        digest_duration_min_per_paper=float(data.get("digest_duration_min_per_paper", 1.5)),
     )

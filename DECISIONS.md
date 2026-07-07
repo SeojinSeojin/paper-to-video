@@ -41,6 +41,23 @@ within each area. "UNVERIFIED" marks anything that needs the owner's secrets.
   A asks, B explains, per the brief.
 
 ## Pipeline
+- **Multi-paper digest**: a request may carry up to 10 URLs; they are combined
+  into **one** video (intro → paper 1 → … → outro), not one video per paper.
+  Each paper is ingested / scripted / figure-extracted in its own sub-workdir
+  (`work/papers/NN/`) via the unchanged single-paper stage logic (`Context.for_paper`
+  + `papers.json` manifest); the **tts** stage merges them into a single
+  `timeline.json` + `final.mp3`. Figure filenames are namespaced per paper
+  (`images/pNN-figure-K.png`) so "Figure 1" from different papers don't collide.
+  `timeline.papers` is a list and every `segment` carries `paperIndex`; the render
+  swaps the top title bar (with a `k / N` counter) as `paperIndex` advances.
+- **Per-paper length**: a single-paper run keeps `target_duration_min` (~5 min);
+  a digest uses `digest_duration_min_per_paper` (~1.5 min, ~225 words) so a
+  10-paper video stays ~15 min. `paper_gap_ms` (900ms) marks paper boundaries in
+  the merged audio.
+- **Digest metadata is composed deterministically** (no extra Gemini call): title
+  = `"{digest_title} — N papers"`, description = a numbered list of each paper's
+  title + its script summary, keywords = de-duped union. A single paper reuses its
+  own script title/summary/keywords verbatim.
 - **Mock mode scope**: `--mock` stubs only the stages with external
   dependencies — ingest (no download), script_gen (no Gemini), tts (no edge-tts
   network), upload (no YouTube). **figures and render always run for real**, so
@@ -68,12 +85,14 @@ within each area. "UNVERIFIED" marks anything that needs the owner's secrets.
   mp3 with pydub (no reliance on WordBoundary events). 350ms silence between
   segments; concatenated to `audio/final.mp3`. Verified with real
   en-US-AvaNeural / ko-KR-SunHiNeural synthesis and a real timeline build.
-- **Render staging**: `run.py` copies `timeline.json` + `audio/final.mp3` +
-  `figures/*.png` into `video/public/render/{,audio,images}` and runs
+- **Render staging**: `run.py` copies `timeline.json` + `audio/final.mp3` into
+  `video/public/render/{,audio}` and each paper's figures into
+  `render/images/pNN-figure-K.png` (matching the timeline), then runs
   `npx remotion render PaperVideo <out> --props={"dataDir":"render"}`.
 - **State/dedupe**: `state/processed.json` is a JSON list; entries keyed by
-  normalized URL (`arxiv:<id>` when possible). `run.py --stage check --url ...`
-  prints NEW/PROCESSED for the workflow's guard. Marked only after a real upload.
+  normalized URL (`arxiv:<id>` when possible). `run.py --stage check --urls ...`
+  prints PROCESSED only when **every** paper in the digest was already processed,
+  else NEW. Each paper URL is recorded (against the one video) after a real upload.
 
 ## Upload
 - YouTube Data API v3 `videos.insert`, OAuth **refresh-token** flow built from
@@ -83,5 +102,7 @@ within each area. "UNVERIFIED" marks anything that needs the owner's secrets.
   (`os.environ["CI"]`). `get_refresh_token.py` does the one-time local consent
   (`run_local_server`, access_type=offline, prompt=consent). UNVERIFIED (needs
   YouTube OAuth secrets).
-- Description = summary + paper title/authors + arXiv link + "Figures from the
-  original paper, © original authors". Tags from keywords, clamped to ~460 chars.
+- Title/description/tags come from `digest.json`. One paper → summary + title/
+  authors + arXiv link; a digest → summary + a numbered "Papers in this digest"
+  list (title + link each). Always closes with "Figures from the original papers,
+  © original authors". Tags from keywords, clamped to ~460 chars.

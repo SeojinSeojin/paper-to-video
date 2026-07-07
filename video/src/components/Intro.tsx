@@ -10,18 +10,25 @@ import type { PaperMeta } from "../types";
 import type { Theme } from "../theme";
 
 interface Props {
-  paper: PaperMeta;
+  papers: PaperMeta[];
+  digestTitle: string;
+  channelName: string;
   theme: Theme;
   fontFamily: string;
 }
 
-/** Opening title card: paper title + authors, fading and lifting in. */
-export const Intro: React.FC<Props> = ({ paper, theme, fontFamily }) => {
+/** Opening title card. For one paper: title + authors. For a digest: the digest
+ * title, a "N papers" eyebrow, and the list of paper titles — all fading in. */
+export const Intro: React.FC<Props> = ({ papers, digestTitle, channelName, theme, fontFamily }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
   const enter = spring({ frame, fps, config: { damping: 200 }, durationInFrames: 24 });
-  const authors = paper.authors.slice(0, 6).join(", ") + (paper.authors.length > 6 ? " et al." : "");
+  const single = papers.length === 1 ? papers[0] : null;
+  const authors = single
+    ? single.authors.slice(0, 6).join(", ") + (single.authors.length > 6 ? " et al." : "")
+    : "";
+  const eyebrow = single ? channelName : `${channelName}  ·  ${papers.length} papers`;
   const out = interpolate(
     frame,
     [durationInFrames - 12, durationInFrames],
@@ -48,6 +55,19 @@ export const Intro: React.FC<Props> = ({ paper, theme, fontFamily }) => {
         <div
           style={{
             fontFamily,
+            fontWeight: 600,
+            fontSize: 22,
+            letterSpacing: 4,
+            textTransform: "uppercase",
+            color: theme.accent,
+            marginBottom: 34,
+          }}
+        >
+          {eyebrow}
+        </div>
+        <div
+          style={{
+            fontFamily,
             fontWeight: 700,
             fontSize: 74,
             lineHeight: 1.18,
@@ -57,9 +77,9 @@ export const Intro: React.FC<Props> = ({ paper, theme, fontFamily }) => {
             maxWidth: 1400,
           }}
         >
-          {paper.title}
+          {single ? single.title : digestTitle}
         </div>
-        {authors ? (
+        {single && authors ? (
           <div
             style={{
               fontFamily,
@@ -70,7 +90,33 @@ export const Intro: React.FC<Props> = ({ paper, theme, fontFamily }) => {
             }}
           >
             {authors}
-            {paper.year ? `  ·  ${paper.year}` : ""}
+            {single.year ? `  ·  ${single.year}` : ""}
+          </div>
+        ) : null}
+        {!single ? (
+          <div
+            style={{
+              fontFamily,
+              fontWeight: 500,
+              fontSize: 26,
+              lineHeight: 1.5,
+              marginTop: 36,
+              color: theme.textMuted,
+              textAlign: "left",
+              maxWidth: 1200,
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}
+          >
+            {papers.slice(0, 6).map((p, i) => (
+              <div key={i} style={{ marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span style={{ color: theme.accent, marginRight: 14 }}>{i + 1}</span>
+                {p.title}
+              </div>
+            ))}
+            {papers.length > 6 ? (
+              <div style={{ color: theme.textFaint }}>+ {papers.length - 6} more</div>
+            ) : null}
           </div>
         ) : null}
       </div>

@@ -20,6 +20,9 @@ from config import Config
 from models import PaperMeta, Script
 
 CAPTION_RE = re.compile(r"\b(?:figure|fig\.?)\s*(\d+)", re.IGNORECASE)
+# A real caption block *starts* with the label ("Figure 3: ..."); this avoids
+# matching inline prose references ("as shown in Figure 3").
+CAPTION_START_RE = re.compile(r"^\s*(?:figure|fig\.?)\s*(\d+)\s*[.:]?\s*(.*)", re.IGNORECASE)
 MIN_IMG_PX = 120          # ignore logos/icons smaller than this
 RENDER_DPI = 150
 MAX_REGION_PT = 430       # cap the height of a rendered figure region (points)
@@ -53,6 +56,35 @@ def _find_captions(doc) -> Dict[int, Caption]:
             if num not in found:
                 found[num] = Caption(number=num, page=pno, y0=y0, y1=y1)
     return found
+
+
+def available_figures(pdf: Path, limit: int = 8) -> Dict[int, str]:
+    """Figure number -> short caption for figures actually present in the PDF.
+
+    Detection-first: the script stage feeds this list to the model so it
+    references real figures, and falls back to it when the model tags none.
+    Only counts blocks that *begin* with the figure label (true captions),
+    so inline prose mentions don't create phantom figures. Never raises.
+    """
+    import fitz  # lazy
+
+    found: Dict[int, str] = {}
+    try:
+        with fitz.open(pdf) as doc:
+            for pno in range(doc.page_count):
+                for b in doc[pno].get_text("blocks"):
+                    text = " ".join((b[4] or "").split())
+                    m = CAPTION_START_RE.match(text)
+                    if not m:
+                        continue
+                    num = int(m.group(1))
+                    if num in found:
+                        continue
+                    found[num] = (m.group(2) or "").strip()[:160]
+    except Exception as exc:  # noqa: BLE001 - detection must never break scripting
+        log("figures", f"available_figures: detection failed ({exc})")
+        return {}
+    return {k: found[k] for k in sorted(found)[:limit]}
 
 
 def _embedded_image_above(doc, cap: Caption) -> Optional[bytes]:
@@ -175,7 +207,7 @@ def _attribution(meta: PaperMeta, number: int) -> str:
     return base
 
 
-def run(ctx: Context) -> dict:
+def _run_one(ctx: Context) -> dict:
     import fitz
 
     cfg = ctx.config
@@ -229,3 +261,12 @@ def run(ctx: Context) -> dict:
     result = {"figures": figures}
     write_json(ctx.figures_json, result)
     return result
+
+
+def run(ctx: Context) -> dict:
+    """Extract figures for every paper in the digest (each into its sub-workdir)."""
+    subs = ctx.paper_contexts()
+    for i, sub in enumerate(subs):
+        log("figures", f"paper {i}: extracting figures")
+        _run_one(sub)
+    return {"papers": len(subs)}

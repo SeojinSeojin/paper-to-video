@@ -12,25 +12,39 @@ from typing import Optional
 
 from common import Context, log, read_json
 from config import Config
-from models import PaperMeta, Script
+from models import PaperMeta
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 MAX_TAGS_CHARS = 460
 
 
-def build_description(cfg: Config, script: Script, meta: PaperMeta) -> str:
-    lines = [script.summary.strip(), ""]
-    lines.append(f"Paper: {meta.title}")
-    if meta.authors:
-        authors = ", ".join(meta.authors[:8]) + (" et al." if len(meta.authors) > 8 else "")
-        lines.append(f"Authors: {authors}")
+def _paper_link(meta: PaperMeta) -> str:
     if meta.arxiv_id:
-        lines.append(f"arXiv: https://arxiv.org/abs/{meta.arxiv_id}")
-    elif meta.source_url:
-        lines.append(f"Source: {meta.source_url}")
+        return f"https://arxiv.org/abs/{meta.arxiv_id}"
+    return meta.source_url or ""
+
+
+def build_description(cfg: Config, digest: dict, papers: list) -> str:
+    lines = [str(digest.get("summary", "")).strip(), ""]
+    if len(papers) == 1:
+        meta = papers[0]
+        lines.append(f"Paper: {meta.title}")
+        if meta.authors:
+            authors = ", ".join(meta.authors[:8]) + (" et al." if len(meta.authors) > 8 else "")
+            lines.append(f"Authors: {authors}")
+        link = _paper_link(meta)
+        if meta.arxiv_id:
+            lines.append(f"arXiv: {link}")
+        elif link:
+            lines.append(f"Source: {link}")
+    else:
+        lines.append("Papers in this digest:")
+        for i, meta in enumerate(papers, start=1):
+            link = _paper_link(meta)
+            lines.append(f"{i}. {meta.title}" + (f" — {link}" if link else ""))
     lines.append("")
-    lines.append("Figures from the original paper, © original authors.")
+    lines.append("Figures from the original papers, © original authors.")
     lines.append(f"Generated automatically by {cfg.channel_name}.")
     return "\n".join(lines)
 
@@ -50,13 +64,13 @@ def clamp_tags(keywords) -> list:
 
 def run(ctx: Context) -> dict:
     cfg = ctx.config
-    script = Script.model_validate(read_json(ctx.script))
-    meta = PaperMeta.model_validate(read_json(ctx.metadata))
+    digest = read_json(ctx.digest)
+    papers = [PaperMeta.model_validate(read_json(sub.metadata)) for sub in ctx.paper_contexts()]
     privacy = "private" if os.environ.get("CI") else cfg.upload_privacy
 
-    title = script.title[:100]
-    description = build_description(cfg, script, meta)[:4900]
-    tags = clamp_tags(script.keywords)
+    title = str(digest["title"])[:100]
+    description = build_description(cfg, digest, papers)[:4900]
+    tags = clamp_tags(digest.get("keywords", []))
 
     if ctx.mock:
         log("upload", f"MOCK: would upload '{title}' as {privacy}")

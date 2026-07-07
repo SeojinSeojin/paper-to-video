@@ -17,7 +17,13 @@ theme:
 
 channel_name: paper2video
 
+# Single-paper runs target this length.
 target_duration_min: 5
+
+# Digest mode (multiple PDFs in one video): per-paper spoken length + the title
+# shown on the intro/outro. Keep segments short so a ~10-paper digest stays watchable.
+digest_title: "Paper Digest"
+digest_duration_min_per_paper: 1.5
 
 # Gemini model used for script generation (free-tier, PDF input + JSON output).
 gemini_model: gemini-2.5-flash
@@ -28,5 +34,7 @@ upload_category_id: "27"   # 27 = Education
 
 # Inter-segment silence inserted by the TTS stage.
 segment_gap_ms: 350
+# Larger silence inserted between papers in a digest (marks the boundary).
+paper_gap_ms: 900
 intro_ms: 3000
 outro_ms: 3000

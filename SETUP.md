@@ -67,8 +67,9 @@ export GEMINI_API_KEY="your-key"
 export GEMINI_MODEL="gemini-2.5-flash"
 ```
 
-Free tier is rate-limited (requests-per-minute/day). One paper = one request
-(plus at most one repair retry).
+Free tier is rate-limited (requests-per-minute/day). Each paper = one request
+(plus at most one repair retry), so a digest of N papers makes ~N requests —
+mind the per-minute limit for large digests.
 
 ---
 
@@ -142,16 +143,18 @@ commit `state/processed.json`.
 **Option A — open an issue** (recommended):
 
 - Title: anything, e.g. `Video: Attention Is All You Need`
-- Body:
+- Body (one URL, or several — up to 10 — for a combined digest video):
   ```
   https://arxiv.org/abs/1706.03762
+  https://arxiv.org/abs/2005.14165
   lang: en
   ```
 - Add the **`video-request`** label. The workflow starts, comments progress, and
   on success posts the (private) YouTube link and closes the issue.
 
 **Option B — manual dispatch:** *Actions → Generate paper video → Run workflow* →
-fill in `url` (and optional `lang`).
+fill in `url` — one or more arXiv/PDF URLs, space/comma/newline separated — (and
+optional `lang`).
 
 ---
 
@@ -171,13 +174,16 @@ source .venv/bin/activate
 export GEMINI_API_KEY=... YOUTUBE_CLIENT_ID=... YOUTUBE_CLIENT_SECRET=... YOUTUBE_REFRESH_TOKEN=...
 
 # whole pipeline (ingest → script → figures → tts → render → upload):
-python pipeline/run.py --stage all --url "https://arxiv.org/abs/1706.03762" --lang en
+python pipeline/run.py --stage all --urls "https://arxiv.org/abs/1706.03762" --lang en
+
+# several papers → one combined digest video (up to 10; space/comma separated):
+python pipeline/run.py --stage all --urls "https://arxiv.org/abs/1706.03762 https://arxiv.org/abs/2005.14165" --lang en
 
 # or render locally without uploading:
-python pipeline/run.py --stage all --url "https://arxiv.org/abs/1706.03762" --skip-upload
+python pipeline/run.py --stage all --urls "https://arxiv.org/abs/1706.03762" --skip-upload
 
 # or one stage at a time (artifacts persist in pipeline/work/):
-python pipeline/run.py --stage ingest  --url "https://arxiv.org/abs/1706.03762"
+python pipeline/run.py --stage ingest  --urls "https://arxiv.org/abs/1706.03762 https://arxiv.org/abs/2005.14165"
 python pipeline/run.py --stage script
 python pipeline/run.py --stage figures
 python pipeline/run.py --stage tts
@@ -185,8 +191,9 @@ python pipeline/run.py --stage render
 python pipeline/run.py --stage upload
 ```
 
-Artifacts land in `pipeline/work/` (`paper.pdf`, `script.json`, `figures/`,
-`timeline.json`, `audio/final.mp3`, `out.mp4`).
+Artifacts land in `pipeline/work/`: one sub-workdir per paper
+(`papers/NN/paper.pdf`, `script.json`, `figures/`) plus the merged
+`papers.json`, `digest.json`, `timeline.json`, `audio/final.mp3`, and `out.mp4`.
 
 ---
 

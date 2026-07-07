@@ -1,36 +1,42 @@
 # paper2video
 
-Turn an academic paper (arXiv URL) into a ~5-minute, two-host conversational
+Turn one or more academic papers (arXiv URLs) into a two-host conversational
 explainer video and upload it to YouTube — entirely on **GitHub Actions**, using
-only **free-tier** services.
+only **free-tier** services. Submit **several papers (up to 10)** and they are
+combined into a single **digest** video (intro → paper 1 → paper 2 → … → outro).
 
-Open a GitHub issue with an arXiv link, add the `video-request` label, and a bot
-does the rest: downloads the PDF, writes a NotebookLM-style two-speaker script
-with Gemini, pulls the figures, narrates it with edge-tts, renders a polished
-1920×1080 video with Remotion, and posts back a (private) YouTube link.
+Open a GitHub issue with one or more arXiv links, add the `video-request` label,
+and a bot does the rest: downloads each PDF, writes a NotebookLM-style two-speaker
+script per paper with Gemini, pulls the figures, narrates with edge-tts, renders a
+polished 1920×1080 video with Remotion, and posts back a (private) YouTube link.
 
 ## Pipeline
 
 ```
-issue (arXiv URL)
+issue (1..10 arXiv URLs)
    │
    ▼
 ingest ──► script_gen ──► figures ──► tts ──► render ──► upload
-(PDF +     (Gemini →     (PyMuPDF    (edge-   (Remotion   (YouTube
- metadata)  dialogue      figures +   tts +    1920×1080)  private)
-            JSON)         fallbacks)  timeline)
+(per-paper (Gemini →     (PyMuPDF    (merge → (Remotion   (YouTube
+ PDF +      per-paper     per-paper   one      1920×1080)  private,
+ metadata)  dialogue +    figures +   timeline              one video)
+            digest meta)  fallbacks)  + audio)
 ```
 
-`timeline.json` (from the tts stage) is the single source of truth the Remotion
-renderer consumes.
+Each paper is ingested / scripted / figure-extracted in its own sub-workdir
+(`work/papers/NN/`); the **tts** stage merges them into one `timeline.json` +
+`final.mp3`, which is the single source of truth the Remotion renderer consumes.
+A single-URL request just produces a one-paper video (the fuller ~5-min length).
 
 ## What it looks like
 
 Dark base (`#0E0E12`) with a single violet accent (`#7C6CFF`): a persistent
-paper title bar, a centered figure card with a soft glow, two colored speaker
+paper title bar (which swaps to the current paper — with a `k / N` counter — as a
+digest advances), a centered figure card with a soft glow, two colored speaker
 identities, and subtitles with an approximate word-level highlight. Cross-faded
-figure transitions, a title intro, and an attribution outro. Fonts (Inter /
-Pretendard) are bundled and loaded offline so CI renders without a network.
+figure transitions, a title intro (listing the papers), and an attribution outro.
+Fonts (Inter / Pretendard) are bundled and loaded offline so CI renders without a
+network.
 
 ## Repository layout
 
@@ -65,7 +71,10 @@ For real runs (Gemini + YouTube keys) and the GitHub automation, see
 Edit `video.config.yaml`: default `language` (`ko`/`en`), edge-tts `voices` per
 language, `theme` colors, `gemini_model`, and `upload_privacy` (CI always uploads
 **private** regardless). An issue body may override language with a `lang: en`
-line.
+line. Digest mode adds `digest_title` (intro/outro label), `paper_gap_ms` (silence
+between papers), and `digest_duration_min_per_paper` (~1.5) — the per-paper spoken
+length used when more than one paper is submitted, so a ~10-paper digest stays
+watchable. A single paper keeps the fuller `target_duration_min`.
 
 ## Notes & limitations
 

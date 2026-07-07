@@ -8,7 +8,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import type { PaperVideoProps, Segment } from "./types";
+import type { PaperMeta, PaperVideoProps, Segment } from "./types";
 import { buildTheme, fontFamilyFor, type Theme } from "./theme";
 import { computeFigureShots, msToFrames } from "./util";
 import { ensureFonts } from "./fonts";
@@ -23,6 +23,36 @@ function speakerName(seg: Segment, language: string): string {
   if (language === "ko") return seg.speaker === "A" ? "진행자" : "설명자";
   return seg.speaker === "A" ? "Host" : "Guest";
 }
+
+/** Persistent top bar that follows the current paper across a digest. */
+const PaperTitleBar: React.FC<{
+  segments: Segment[];
+  papers: PaperMeta[];
+  theme: Theme;
+  fontFamily: string;
+}> = ({ segments, papers, theme, fontFamily }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  // Most-recent segment that has started decides which paper we're on (mirrors
+  // FigureStage), so the title holds through the small silences between lines.
+  let idx = 0;
+  for (let i = 0; i < segments.length; i += 1) {
+    if (frame >= msToFrames(segments[i].startMs, fps)) idx = segments[i].paperIndex;
+    else break;
+  }
+  const paper = papers[idx] ?? papers[0];
+  if (!paper) return null;
+  const counter = papers.length > 1 ? `${idx + 1} / ${papers.length}` : null;
+  return (
+    <TitleBar
+      title={paper.title}
+      arxivId={paper.arxivId}
+      counter={counter}
+      theme={theme}
+      fontFamily={fontFamily}
+    />
+  );
+};
 
 /** Cross-fading figure stage spanning the whole narration. */
 const FigureStage: React.FC<{
@@ -119,12 +149,12 @@ export const PaperVideo: React.FC<PaperVideoProps> = ({ dataDir, timeline }) => 
       />
 
       <Sequence durationInFrames={introFrames} name="Intro">
-        <Intro paper={timeline.paper} theme={theme} fontFamily={fontFamily} />
+        <Intro papers={timeline.papers} digestTitle={timeline.digestTitle} channelName={timeline.channelName} theme={theme} fontFamily={fontFamily} />
       </Sequence>
 
       <Sequence from={introFrames} durationInFrames={narrationFrames} name="Narration">
         <Audio src={audioSrc} />
-        <TitleBar title={timeline.paper.title} arxivId={timeline.paper.arxivId} theme={theme} fontFamily={fontFamily} />
+        <PaperTitleBar segments={timeline.segments} papers={timeline.papers} theme={theme} fontFamily={fontFamily} />
         <FigureStage segments={timeline.segments} dataDir={dataDir} theme={theme} fontFamily={fontFamily} />
         {timeline.segments.map((seg) => {
           const start = msToFrames(seg.startMs, fps);
@@ -144,7 +174,7 @@ export const PaperVideo: React.FC<PaperVideoProps> = ({ dataDir, timeline }) => 
       </Sequence>
 
       <Sequence from={introFrames + narrationFrames} durationInFrames={outroFrames} name="Outro">
-        <Outro paper={timeline.paper} channelName={timeline.channelName} theme={theme} fontFamily={fontFamily} />
+        <Outro papers={timeline.papers} digestTitle={timeline.digestTitle} channelName={timeline.channelName} theme={theme} fontFamily={fontFamily} />
       </Sequence>
     </AbsoluteFill>
   );

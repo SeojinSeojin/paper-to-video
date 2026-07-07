@@ -5,12 +5,14 @@ import type { Theme } from "../theme";
 interface Props {
   title: string;
   arxivId: string | null;
+  /** optional "k / N" digest position shown before the arXiv id */
+  counter?: string | null;
   theme: Theme;
   fontFamily: string;
 }
 
 /** Small, low-contrast persistent bar at the very top of the frame. */
-export const TitleBar: React.FC<Props> = ({ title, arxivId, theme, fontFamily }) => {
+export const TitleBar: React.FC<Props> = ({ title, arxivId, counter, theme, fontFamily }) => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 18], [0, 1], {
     extrapolateLeft: "clamp",
@@ -65,7 +67,7 @@ export const TitleBar: React.FC<Props> = ({ title, arxivId, theme, fontFamily })
           {title}
         </span>
       </div>
-      {arxivId ? (
+      {counter || arxivId ? (
         <span
           style={{
             fontFamily,
@@ -75,9 +77,12 @@ export const TitleBar: React.FC<Props> = ({ title, arxivId, theme, fontFamily })
             textTransform: "uppercase",
             color: theme.textFaint,
             flexShrink: 0,
+            display: "flex",
+            gap: 16,
           }}
         >
-          arXiv:{arxivId}
+          {counter ? <span style={{ color: theme.accent }}>{counter}</span> : null}
+          {arxivId ? <span>arXiv:{arxivId}</span> : null}
         </span>
       ) : null}
     </div>

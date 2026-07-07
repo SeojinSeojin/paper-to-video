@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Parse a video request into `url` and `lang` GitHub Actions step outputs.
+"""Parse a video request into `urls`, `url`, `count` and `lang` step outputs.
 
-For workflow_dispatch: read INPUT_URL / INPUT_LANG.
-For issues: extract the first URL (preferring arXiv, then .pdf) and an optional
-`lang: ko|en` line from ISSUE_BODY.
+For workflow_dispatch: read INPUT_URL (may hold several space/newline/comma
+separated URLs) / INPUT_LANG.
+For issues: extract every URL from ISSUE_BODY (arXiv/PDF first, then the rest)
+and an optional `lang: ko|en` line.
 
-Writes `url=...` and `lang=...` to stdout (redirect into $GITHUB_OUTPUT).
+Writes to stdout (redirect into $GITHUB_OUTPUT):
+  urls=<space-joined list, capped at MAX_URLS>   # for `run.py --urls`
+  url=<first url>                                 # for comment display
+  count=<number of urls>
+  lang=<ko|en|"">
 Exits non-zero if no URL is found.
 """
 from __future__ import annotations
@@ -16,38 +21,50 @@ import sys
 
 URL_RE = re.compile(r"https?://[^\s<>)\]}\"']+")
 LANG_RE = re.compile(r"lang\s*:\s*(ko|en)\b", re.IGNORECASE)
+MAX_URLS = 10
 
 
-def pick_url(body: str) -> str:
-    urls = [u.strip().rstrip(".,);") for u in URL_RE.findall(body)]
-    urls = [u for u in urls if u]
-    for u in urls:
-        if "arxiv.org" in u.lower():
-            return u
-    for u in urls:
-        if u.lower().endswith(".pdf"):
-            return u
-    return urls[0] if urls else ""
+def _rank(u: str) -> int:
+    lu = u.lower()
+    if "arxiv.org" in lu:
+        return 0
+    if lu.endswith(".pdf"):
+        return 1
+    return 2
+
+
+def extract_urls(text: str) -> list:
+    """All URLs in `text`: arXiv first, then PDFs, then the rest. De-duped, capped."""
+    raw = [u.strip().rstrip(".,);") for u in URL_RE.findall(text or "")]
+    seen, urls = set(), []
+    for u in raw:
+        if u and u not in seen:
+            seen.add(u)
+            urls.append(u)
+    urls.sort(key=_rank)  # stable: preserves original order within a rank
+    return urls[:MAX_URLS]
 
 
 def main() -> int:
     event = os.environ.get("EVENT_NAME", "")
     if event == "workflow_dispatch":
-        url = (os.environ.get("INPUT_URL") or "").strip()
+        urls = extract_urls(os.environ.get("INPUT_URL") or "")
         lang = (os.environ.get("INPUT_LANG") or "").strip().lower()
     else:
         body = os.environ.get("ISSUE_BODY") or ""
-        url = pick_url(body)
+        urls = extract_urls(body)
         m = LANG_RE.search(body)
         lang = m.group(1).lower() if m else ""
 
     if lang not in ("ko", "en", ""):
         lang = ""
-    if not url:
+    if not urls:
         print("No URL found in the request body.", file=sys.stderr)
         return 1
 
-    print(f"url={url}")
+    print(f"urls={' '.join(urls)}")
+    print(f"url={urls[0]}")
+    print(f"count={len(urls)}")
     print(f"lang={lang}")
     return 0
 

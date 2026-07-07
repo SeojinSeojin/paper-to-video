@@ -99,45 +99,85 @@ def figure_sparsity(path: Path) -> None:
     im.save(path)
 
 
-SEGMENTS = [
-    ("A", "So this paper claims transformers can be made dramatically faster. Is that actually true?", None),
-    ("B", "Mostly, yes. The trick is to attend to a learned subset of tokens instead of all of them.", 1),
-    ("A", "So instead of every word looking at every other word, the model picks a few important ones?", 1),
-    ("B", "Exactly. Figure two shows the sparsity pattern the model discovers on its own during training.", 2),
-    ("A", "And that grid is what saves all the computation?", 2),
-    ("B", "Right. The cost drops from quadratic to almost linear, with barely any accuracy loss.", None),
-    ("A", "That is a genuinely great tradeoff. Thanks for breaking it down so clearly.", None),
+# A two-paper digest so the fixture exercises the multi-paper render path.
+PAPERS = [
+    {
+        "meta": {
+            "title": "Efficient Transformers via Learned Sparse Attention",
+            "authors": ["A. Rivera", "K. Sato", "L. Meyer", "P. Osei"],
+            "year": "2024",
+            "arxivId": "2401.01234",
+            "url": "https://arxiv.org/abs/2401.01234",
+        },
+        "attrib": "Rivera et al., 2024 (arXiv:2401.01234)",
+        "segments": [
+            ("A", "So this paper claims transformers can be made dramatically faster. Is that actually true?", None),
+            ("B", "Mostly, yes. The trick is to attend to a learned subset of tokens instead of all of them.", 1),
+            ("A", "So instead of every word looking at every other word, the model picks a few important ones?", 1),
+            ("B", "Exactly. Figure two shows the sparsity pattern the model discovers on its own.", 2),
+            ("A", "And that grid is what saves all the computation? Great tradeoff.", 2),
+        ],
+    },
+    {
+        "meta": {
+            "title": "Retrieval-Augmented Generation for Long Documents",
+            "authors": ["M. Chen", "R. Kumar", "S. Ito"],
+            "year": "2024",
+            "arxivId": "2402.05678",
+            "url": "https://arxiv.org/abs/2402.05678",
+        },
+        "attrib": "Chen et al., 2024 (arXiv:2402.05678)",
+        "segments": [
+            ("A", "Why do language models get worse on really long documents?", None),
+            ("B", "They lose track of the middle. Figure one shows accuracy falling as the document grows.", 1),
+            ("A", "So how does retrieval fix that?", 1),
+            ("B", "A small retriever picks the most relevant passages first, as figure two illustrates.", 2),
+            ("A", "And only those go into the model, so the answers stay grounded.", 2),
+        ],
+    },
 ]
 
 INTRO_MS = 3000
 OUTRO_MS = 3000
 GAP_MS = 350
+PAPER_GAP_MS = 900
 WPS = 2.6  # words per second, rough speaking rate for fixture timing
 
 
-def build_timeline() -> dict:
+def build_timeline() -> tuple:
     segments = []
+    papers = []
     t = 0
-    for i, (spk, text, fig) in enumerate(SEGMENTS):
-        words = len(text.split())
-        dur = int(words / WPS * 1000) + 500
-        image = f"images/figure-{fig}.png" if fig else None
-        attribution = (
-            f"Figure {fig} — Rivera et al., 2024 (arXiv:2401.01234)" if fig else None
-        )
-        segments.append(
-            {
-                "index": i,
-                "speaker": spk,
-                "text": text,
-                "startMs": t,
-                "endMs": t + dur,
-                "figure": fig,
-                "image": image,
-                "attribution": attribution,
-            }
-        )
-        t += dur + GAP_MS
+    gi = 0
+    for pi, paper in enumerate(PAPERS):
+        papers.append(paper["meta"])
+        last_paper = pi == len(PAPERS) - 1
+        for si, (spk, text, fig) in enumerate(paper["segments"]):
+            words = len(text.split())
+            dur = int(words / WPS * 1000) + 500
+            image = f"images/p{pi:02d}-figure-{fig}.png" if fig else None
+            attribution = f"Figure {fig} — {paper['attrib']}" if fig else None
+            segments.append(
+                {
+                    "index": gi,
+                    "paperIndex": pi,
+                    "speaker": spk,
+                    "text": text,
+                    "startMs": t,
+                    "endMs": t + dur,
+                    "figure": fig,
+                    "image": image,
+                    "attribution": attribution,
+                }
+            )
+            gi += 1
+            last_seg = si == len(paper["segments"]) - 1
+            if last_seg and last_paper:
+                t += dur
+            elif last_seg:
+                t += dur + PAPER_GAP_MS
+            else:
+                t += dur + GAP_MS
     narration_ms = segments[-1]["endMs"]
     total_ms = INTRO_MS + narration_ms + OUTRO_MS
     return {
@@ -145,13 +185,8 @@ def build_timeline() -> dict:
         "fps": 30,
         "width": 1920,
         "height": 1080,
-        "paper": {
-            "title": "Efficient Transformers via Learned Sparse Attention",
-            "authors": ["A. Rivera", "K. Sato", "L. Meyer", "P. Osei"],
-            "year": "2024",
-            "arxivId": "2401.01234",
-            "url": "https://arxiv.org/abs/2401.01234",
-        },
+        "papers": papers,
+        "digestTitle": "Paper Digest — 2 papers",
         "channelName": "paper2video",
         "accent": "#7C6CFF",
         "background": "#0E0E12",
@@ -179,8 +214,15 @@ def make_silence(path: Path, ms: int) -> None:
 def main() -> int:
     IMG_DIR.mkdir(parents=True, exist_ok=True)
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    # Two papers reuse the same two chart images under per-paper namespaced names
+    # (p00-figure-1.png, ...) to mirror the pipeline's real output layout.
     figure_line_chart(IMG_DIR / "figure-1.png")
     figure_sparsity(IMG_DIR / "figure-2.png")
+    for pi in range(len(PAPERS)):
+        for fig in (1, 2):
+            (IMG_DIR / f"p{pi:02d}-figure-{fig}.png").write_bytes(
+                (IMG_DIR / f"figure-{fig}.png").read_bytes()
+            )
     timeline, narration_ms = build_timeline()
     make_silence(AUDIO_DIR / "final.mp3", narration_ms)
     (FIX / "timeline.json").write_text(json.dumps(timeline, ensure_ascii=False, indent=2))

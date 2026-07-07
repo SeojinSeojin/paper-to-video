@@ -10,17 +10,22 @@ import type { PaperMeta } from "../types";
 import type { Theme } from "../theme";
 
 interface Props {
-  paper: PaperMeta;
+  papers: PaperMeta[];
+  digestTitle: string;
   channelName: string;
   theme: Theme;
   fontFamily: string;
 }
 
-/** Closing card: thanks + attribution + arXiv link + channel name. */
-export const Outro: React.FC<Props> = ({ paper, channelName, theme, fontFamily }) => {
+/** Closing card: thanks + attribution + arXiv link (single) + channel name. */
+export const Outro: React.FC<Props> = ({ papers, digestTitle, channelName, theme, fontFamily }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const enter = spring({ frame, fps, config: { damping: 200 }, durationInFrames: 22 });
+  const single = papers.length === 1 ? papers[0] : null;
+  const subtitle = single
+    ? single.title
+    : `${digestTitle}  ·  ${papers.length} papers`;
 
   return (
     <AbsoluteFill
@@ -55,9 +60,9 @@ export const Outro: React.FC<Props> = ({ paper, channelName, theme, fontFamily }
             textWrap: "balance",
           }}
         >
-          {paper.title}
+          {subtitle}
         </div>
-        {paper.arxivId ? (
+        {single && single.arxivId ? (
           <div
             style={{
               fontFamily,
@@ -68,7 +73,7 @@ export const Outro: React.FC<Props> = ({ paper, channelName, theme, fontFamily }
               letterSpacing: 1,
             }}
           >
-            arxiv.org/abs/{paper.arxivId}
+            arxiv.org/abs/{single.arxivId}
           </div>
         ) : null}
         <div

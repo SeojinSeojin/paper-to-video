@@ -3,7 +3,8 @@
 
 Run the whole pipeline or a single stage:
 
-  python pipeline/run.py --stage all --url https://arxiv.org/abs/2401.01234
+  python pipeline/run.py --stage all --urls https://arxiv.org/abs/2401.01234
+  python pipeline/run.py --stage all --urls "URL1 URL2 URL3"   # combined digest
   python pipeline/run.py --stage all --mock            # offline, no API keys
   python pipeline/run.py --stage render --workdir pipeline/work
 
@@ -13,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -54,6 +56,22 @@ def is_processed(url: str) -> bool:
     return any(_norm(r.get("url", "")) == key for r in _load_state())
 
 
+def all_processed(urls: list) -> bool:
+    """A digest is 'already processed' only if every paper in it was."""
+    return bool(urls) and all(is_processed(u) for u in urls)
+
+
+def parse_urls(raw) -> list:
+    """Split a space/comma/newline separated URL string into a clean list."""
+    if not raw:
+        return []
+    if isinstance(raw, (list, tuple)):
+        parts = raw
+    else:
+        parts = re.split(r"[\s,]+", str(raw))
+    return [u.strip() for u in parts if u and u.strip()]
+
+
 def mark_processed(url: str, result: dict, title: str) -> None:
     state = _load_state()
     state.append(
@@ -88,8 +106,11 @@ def stage_render(ctx: Context) -> None:
     if not final_audio.exists():
         raise FileNotFoundError(f"{final_audio} missing — run the tts stage first")
     shutil.copy(final_audio, dest / "audio" / "final.mp3")
-    for png in sorted(ctx.figures_dir.glob("*.png")):
-        shutil.copy(png, dest / "images" / png.name)
+    # Copy each paper's figures with the per-paper prefix the timeline references
+    # (images/pNN-figure-K.png), so "figure-1.png" from different papers coexist.
+    for i, sub in enumerate(ctx.paper_contexts()):
+        for png in sorted(sub.figures_dir.glob("*.png")):
+            shutil.copy(png, dest / "images" / f"p{i:02d}-{png.name}")
 
     props = json.dumps({"dataDir": "render"})
     out = ctx.out_mp4.resolve()
@@ -107,7 +128,9 @@ def main() -> int:
     p = argparse.ArgumentParser(description="paper2video pipeline")
     p.add_argument("--stage", required=True,
                    choices=ALL_STAGES + ["all", "check"])
-    p.add_argument("--url", default=None, help="arXiv or PDF URL")
+    p.add_argument("--urls", default=None,
+                   help="one or more arXiv/PDF URLs (space/comma separated)")
+    p.add_argument("--url", default=None, help="deprecated alias for --urls (single URL)")
     p.add_argument("--workdir", default=str(ROOT / "pipeline" / "work"))
     p.add_argument("--lang", default=None, help="override language (ko|en)")
     p.add_argument("--mock", action="store_true", help="offline mode using fixtures")
@@ -118,12 +141,15 @@ def main() -> int:
     ctx = Context(workdir=Path(args.workdir), config=cfg, mock=args.mock)
     ctx.ensure_dirs()
 
+    urls = parse_urls(args.urls or args.url)
+
     # 'check' is a lightweight helper for the workflow's dedupe guard.
     if args.stage == "check":
-        if not args.url:
-            print("check requires --url", file=sys.stderr)
+        if not urls:
+            print("check requires --urls", file=sys.stderr)
             return 2
-        print("PROCESSED" if is_processed(args.url) else "NEW")
+        # Only skip when *every* paper in the digest was already processed.
+        print("PROCESSED" if all_processed(urls) else "NEW")
         return 0
 
     import ingest, script_gen, figures, tts, upload  # noqa: E402
@@ -135,7 +161,7 @@ def main() -> int:
     result = {}
     for stage in stages:
         if stage == "ingest":
-            ingest.run(ctx, args.url)
+            ingest.run(ctx, urls)
         elif stage == "script":
             script_gen.run(ctx)
         elif stage == "figures":
@@ -147,9 +173,11 @@ def main() -> int:
         elif stage == "upload":
             result = upload.run(ctx)
             if not ctx.mock and result.get("video_id"):
-                meta = read_json(ctx.metadata)
-                src = args.url or meta.get("source_url", "")
-                mark_processed(src, result, meta.get("title", ""))
+                digest = read_json(ctx.digest) if ctx.digest.exists() else {}
+                # Record every paper in the digest against this one video.
+                for sub in ctx.paper_contexts():
+                    meta = read_json(sub.metadata)
+                    mark_processed(meta.get("source_url", ""), result, digest.get("title", ""))
             # Emit a parseable line for the GitHub Actions workflow.
             if result.get("url"):
                 print(f"RESULT_VIDEO_URL={result['url']}", flush=True)

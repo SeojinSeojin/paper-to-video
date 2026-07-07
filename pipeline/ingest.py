@@ -1,10 +1,14 @@
-"""Stage 1 — ingest: arXiv/PDF URL -> paper.pdf + metadata.json."""
+"""Stage 1 — ingest: one or more arXiv/PDF URLs -> per-paper paper.pdf + metadata.json.
+
+Each paper lands in its own sub-workdir (workdir/papers/NN); `papers.json` records
+them in order so later stages can iterate. A single-URL run is just N == 1.
+"""
 from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import requests
 
@@ -82,32 +86,19 @@ def title_from_pdf(pdf: Path) -> str:
     return "Untitled paper"
 
 
-def run(ctx: Context, url: Optional[str]) -> PaperMeta:
-    ctx.ensure_dirs()
-
-    if ctx.mock:
-        from mock_data import MOCK_METADATA, build_mock_pdf
-
-        log("ingest", "MOCK: building fixture paper.pdf + metadata.json")
-        build_mock_pdf(ctx.pdf)
-        meta = PaperMeta(**MOCK_METADATA)
-        write_json(ctx.metadata, meta.model_dump())
-        log("ingest", f"MOCK: '{meta.title}' ({ctx.pdf.stat().st_size} bytes)")
-        return meta
-
-    if not url:
-        raise ValueError("ingest requires --url (or use --mock)")
-
+def _ingest_one(sub: Context, url: str) -> PaperMeta:
+    """Download a single paper's PDF + metadata into its sub-workdir."""
+    sub.ensure_dirs()
     arxiv_id = extract_arxiv_id(url)
     if arxiv_id:
         log("ingest", f"arXiv id {arxiv_id}: fetching metadata")
         meta = fetch_arxiv_metadata(arxiv_id)
         log("ingest", f"downloading PDF for {arxiv_id}")
-        download(arxiv_pdf_url(arxiv_id), ctx.pdf)
+        download(arxiv_pdf_url(arxiv_id), sub.pdf)
     else:
         log("ingest", f"non-arXiv PDF: downloading {url}")
-        download(url, ctx.pdf)
-        title = title_from_pdf(ctx.pdf)
+        download(url, sub.pdf)
+        title = title_from_pdf(sub.pdf)
         meta = PaperMeta(
             title=title,
             authors=[],
@@ -118,6 +109,49 @@ def run(ctx: Context, url: Optional[str]) -> PaperMeta:
         )
         log("ingest", f"best-effort title: '{title}'")
 
-    write_json(ctx.metadata, meta.model_dump())
-    log("ingest", f"done: '{meta.title}' ({ctx.pdf.stat().st_size} bytes)")
+    write_json(sub.metadata, meta.model_dump())
+    log("ingest", f"done: '{meta.title}' ({sub.pdf.stat().st_size} bytes)")
     return meta
+
+
+def run(ctx: Context, urls: Optional[List[str]]) -> List[PaperMeta]:
+    ctx.ensure_dirs()
+    metas: List[PaperMeta] = []
+    manifest: List[dict] = []
+
+    if ctx.mock:
+        from mock_data import MOCK_PAPERS, build_mock_pdf
+
+        log("ingest", f"MOCK: building {len(MOCK_PAPERS)} fixture paper(s)")
+        for i, paper in enumerate(MOCK_PAPERS):
+            sub = ctx.for_paper(i)
+            sub.ensure_dirs()
+            pdf_spec = paper["pdf"]
+            build_mock_pdf(
+                sub.pdf,
+                title=pdf_spec["title"],
+                body=pdf_spec["body"],
+                figures=pdf_spec["figures"],
+            )
+            meta = PaperMeta(**paper["metadata"])
+            write_json(sub.metadata, meta.model_dump())
+            metas.append(meta)
+            manifest.append({"index": i, "url": meta.source_url, "dir": f"papers/{i:02d}"})
+            log("ingest", f"MOCK paper {i}: '{meta.title}' ({sub.pdf.stat().st_size} bytes)")
+        write_json(ctx.papers_manifest, manifest)
+        return metas
+
+    urls = [u for u in (urls or []) if u and u.strip()]
+    if not urls:
+        raise ValueError("ingest requires --urls (or use --mock)")
+
+    log("ingest", f"ingesting {len(urls)} paper(s)")
+    for i, url in enumerate(urls):
+        sub = ctx.for_paper(i)
+        meta = _ingest_one(sub, url.strip())
+        metas.append(meta)
+        manifest.append({"index": i, "url": url.strip(), "dir": f"papers/{i:02d}"})
+
+    write_json(ctx.papers_manifest, manifest)
+    log("ingest", f"done: {len(metas)} paper(s) ingested")
+    return metas

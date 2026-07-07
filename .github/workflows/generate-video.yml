@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: "arXiv abstract/PDF URL or direct PDF URL"
+        description: "One or more arXiv/PDF URLs (space, comma or newline separated). Multiple → one combined digest video."
         required: true
       lang:
         description: "Language override (ko | en). Leave blank for config default."
@@ -76,13 +76,13 @@ jobs:
       - name: Comment — started
         if: github.event_name == 'issues'
         run: |
-          gh issue comment "$ISSUE" --body "🎬 **paper2video** started for \`${{ steps.parse.outputs.url }}\`.
-          Follow progress in the [Actions run]($RUN_URL)."
+          gh issue comment "$ISSUE" --body "🎬 **paper2video** started for **${{ steps.parse.outputs.count }} paper(s)** (e.g. \`${{ steps.parse.outputs.url }}\`).
+          Multiple papers are combined into one digest video. Follow progress in the [Actions run]($RUN_URL)."
 
       - name: Dedupe check
         id: check
         run: |
-          STATUS=$(python pipeline/run.py --stage check --url "${{ steps.parse.outputs.url }}")
+          STATUS=$(python pipeline/run.py --stage check --urls "${{ steps.parse.outputs.urls }}")
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
           echo "Dedupe status: $STATUS"
 
@@ -97,13 +97,13 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          python pipeline/run.py --stage ingest --url "${{ steps.parse.outputs.url }}" --lang "${{ steps.parse.outputs.lang }}"
+          python pipeline/run.py --stage ingest --urls "${{ steps.parse.outputs.urls }}" --lang "${{ steps.parse.outputs.lang }}"
           python pipeline/run.py --stage script --lang "${{ steps.parse.outputs.lang }}"
 
       - name: Comment — script ready
         if: github.event_name == 'issues' && steps.check.outputs.status != 'PROCESSED'
         run: |
-          TITLE=$(python -c "import json;print(json.load(open('pipeline/work/script.json'))['title'])")
+          TITLE=$(python -c "import json;print(json.load(open('pipeline/work/digest.json'))['title'])")
           gh issue comment "$ISSUE" --body "📝 Script generated: **$TITLE**. Extracting figures and synthesizing audio…"
 
       - name: Figures + TTS

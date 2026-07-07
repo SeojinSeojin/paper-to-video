@@ -67,6 +67,8 @@ class PaperMeta(BaseModel):
 # --------------------------------------------------------------------------- #
 class TimelineSegment(BaseModel):
     index: int
+    # Which paper (0-based) in `Timeline.papers` this line belongs to.
+    paperIndex: int = 0
     speaker: Literal["A", "B"]
     text: str
     startMs: int
@@ -89,7 +91,10 @@ class Timeline(BaseModel):
     fps: int = 30
     width: int = 1920
     height: int = 1080
-    paper: TimelinePaper
+    # One entry per paper in the digest (a single-paper run has one).
+    papers: List[TimelinePaper]
+    # Title shown on the intro/outro cards (the paper title, or the digest title).
+    digestTitle: str
     channelName: str
     accent: str
     background: str

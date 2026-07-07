@@ -14,6 +14,8 @@ export interface PaperMeta {
 
 export interface Segment {
   index: number;
+  /** which paper (0-based) in Timeline.papers this line belongs to */
+  paperIndex: number;
   speaker: Speaker;
   text: string;
   /** milliseconds relative to the start of the narration audio (0 = first word) */
@@ -32,7 +34,10 @@ export interface Timeline {
   fps: number;
   width: number;
   height: number;
-  paper: PaperMeta;
+  /** one entry per paper in the digest (single-paper runs have one) */
+  papers: PaperMeta[];
+  /** title shown on the intro/outro cards (paper title, or the digest title) */
+  digestTitle: string;
   channelName: string;
   /** theme colors, forwarded from video.config.yaml by the pipeline */
   accent: string;

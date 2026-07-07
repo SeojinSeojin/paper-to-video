@@ -66,6 +66,36 @@ class Context:
     def out_mp4(self) -> Path:
         return self.workdir / "out.mp4"
 
+    # --- digest (multi-paper) helpers ------------------------------------- #
+    @property
+    def papers_manifest(self) -> Path:
+        """List of per-paper sub-workdirs written by the ingest stage."""
+        return self.workdir / "papers.json"
+
+    @property
+    def digest(self) -> Path:
+        """Composed digest title/summary/keywords (script stage)."""
+        return self.workdir / "digest.json"
+
+    def for_paper(self, index: int) -> "Context":
+        """A sub-Context rooted at workdir/papers/NN, sharing config + mock.
+
+        Each paper is ingested / scripted / figure-extracted in its own
+        sub-workdir so the existing single-paper stage logic runs unchanged;
+        the tts stage then merges them into one timeline.
+        """
+        sub = Context(
+            workdir=self.workdir / "papers" / f"{index:02d}",
+            config=self.config,
+            mock=self.mock,
+        )
+        return sub
+
+    def paper_contexts(self) -> list["Context"]:
+        """Sub-Contexts for every paper listed in the manifest, in order."""
+        entries = json.loads(self.papers_manifest.read_text(encoding="utf-8"))
+        return [self.for_paper(e["index"]) for e in entries]
+
     def ensure_dirs(self) -> None:
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.figures_dir.mkdir(parents=True, exist_ok=True)

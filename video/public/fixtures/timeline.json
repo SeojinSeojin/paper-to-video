@@ -3,18 +3,32 @@
   "fps": 30,
   "width": 1920,
   "height": 1080,
-  "paper": {
-    "title": "Efficient Transformers via Learned Sparse Attention",
-    "authors": [
-      "A. Rivera",
-      "K. Sato",
-      "L. Meyer",
-      "P. Osei"
-    ],
-    "year": "2024",
-    "arxivId": "2401.01234",
-    "url": "https://arxiv.org/abs/2401.01234"
-  },
+  "papers": [
+    {
+      "title": "Efficient Transformers via Learned Sparse Attention",
+      "authors": [
+        "A. Rivera",
+        "K. Sato",
+        "L. Meyer",
+        "P. Osei"
+      ],
+      "year": "2024",
+      "arxivId": "2401.01234",
+      "url": "https://arxiv.org/abs/2401.01234"
+    },
+    {
+      "title": "Retrieval-Augmented Generation for Long Documents",
+      "authors": [
+        "M. Chen",
+        "R. Kumar",
+        "S. Ito"
+      ],
+      "year": "2024",
+      "arxivId": "2402.05678",
+      "url": "https://arxiv.org/abs/2402.05678"
+    }
+  ],
+  "digestTitle": "Paper Digest — 2 papers",
   "channelName": "paper2video",
   "accent": "#7C6CFF",
   "background": "#0E0E12",
@@ -27,6 +41,7 @@
   "segments": [
     {
       "index": 0,
+      "paperIndex": 0,
       "speaker": "A",
       "text": "So this paper claims transformers can be made dramatically faster. Is that actually true?",
       "startMs": 0,
@@ -37,65 +52,104 @@
     },
     {
       "index": 1,
+      "paperIndex": 0,
       "speaker": "B",
       "text": "Mostly, yes. The trick is to attend to a learned subset of tokens instead of all of them.",
       "startMs": 6234,
       "endMs": 13657,
       "figure": 1,
-      "image": "images/figure-1.png",
+      "image": "images/p00-figure-1.png",
       "attribution": "Figure 1 — Rivera et al., 2024 (arXiv:2401.01234)"
     },
     {
       "index": 2,
+      "paperIndex": 0,
       "speaker": "A",
       "text": "So instead of every word looking at every other word, the model picks a few important ones?",
       "startMs": 14007,
       "endMs": 21045,
       "figure": 1,
-      "image": "images/figure-1.png",
+      "image": "images/p00-figure-1.png",
       "attribution": "Figure 1 — Rivera et al., 2024 (arXiv:2401.01234)"
     },
     {
       "index": 3,
+      "paperIndex": 0,
       "speaker": "B",
-      "text": "Exactly. Figure two shows the sparsity pattern the model discovers on its own during training.",
+      "text": "Exactly. Figure two shows the sparsity pattern the model discovers on its own.",
       "startMs": 21395,
-      "endMs": 27664,
+      "endMs": 26895,
       "figure": 2,
-      "image": "images/figure-2.png",
+      "image": "images/p00-figure-2.png",
       "attribution": "Figure 2 — Rivera et al., 2024 (arXiv:2401.01234)"
     },
     {
       "index": 4,
+      "paperIndex": 0,
       "speaker": "A",
-      "text": "And that grid is what saves all the computation?",
-      "startMs": 28014,
+      "text": "And that grid is what saves all the computation? Great tradeoff.",
+      "startMs": 27245,
       "endMs": 31975,
       "figure": 2,
-      "image": "images/figure-2.png",
+      "image": "images/p00-figure-2.png",
       "attribution": "Figure 2 — Rivera et al., 2024 (arXiv:2401.01234)"
     },
     {
       "index": 5,
-      "speaker": "B",
-      "text": "Right. The cost drops from quadratic to almost linear, with barely any accuracy loss.",
-      "startMs": 32325,
-      "endMs": 38209,
+      "paperIndex": 1,
+      "speaker": "A",
+      "text": "Why do language models get worse on really long documents?",
+      "startMs": 32875,
+      "endMs": 37221,
       "figure": null,
       "image": null,
       "attribution": null
     },
     {
       "index": 6,
+      "paperIndex": 1,
+      "speaker": "B",
+      "text": "They lose track of the middle. Figure one shows accuracy falling as the document grows.",
+      "startMs": 37571,
+      "endMs": 43840,
+      "figure": 1,
+      "image": "images/p01-figure-1.png",
+      "attribution": "Figure 1 — Chen et al., 2024 (arXiv:2402.05678)"
+    },
+    {
+      "index": 7,
+      "paperIndex": 1,
       "speaker": "A",
-      "text": "That is a genuinely great tradeoff. Thanks for breaking it down so clearly.",
-      "startMs": 38559,
-      "endMs": 44059,
-      "figure": null,
-      "image": null,
-      "attribution": null
+      "text": "So how does retrieval fix that?",
+      "startMs": 44190,
+      "endMs": 46997,
+      "figure": 1,
+      "image": "images/p01-figure-1.png",
+      "attribution": "Figure 1 — Chen et al., 2024 (arXiv:2402.05678)"
+    },
+    {
+      "index": 8,
+      "paperIndex": 1,
+      "speaker": "B",
+      "text": "A small retriever picks the most relevant passages first, as figure two illustrates.",
+      "startMs": 47347,
+      "endMs": 52847,
+      "figure": 2,
+      "image": "images/p01-figure-2.png",
+      "attribution": "Figure 2 — Chen et al., 2024 (arXiv:2402.05678)"
+    },
+    {
+      "index": 9,
+      "paperIndex": 1,
+      "speaker": "A",
+      "text": "And only those go into the model, so the answers stay grounded.",
+      "startMs": 53197,
+      "endMs": 58312,
+      "figure": 2,
+      "image": "images/p01-figure-2.png",
+      "attribution": "Figure 2 — Chen et al., 2024 (arXiv:2402.05678)"
     }
   ],
   "audio": "audio/final.mp3",
-  "totalMs": 50059
+  "totalMs": 64312
 }
