@@ -13,6 +13,27 @@ from models import PaperMeta, Script
 LANG_NAME = {"ko": "Korean", "en": "English"}
 INLINE_LIMIT = 18 * 1024 * 1024  # bytes; above this use the Files API
 
+# Gemini can return transient 5xx / 429 under load ("high demand"). Retry these
+# ourselves with exponential backoff — the SDK's own retry does not always cover 503.
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+_MAX_RETRIES = 5
+
+
+def _generate_content_with_retry(client, **kwargs):
+    from google.genai import errors
+
+    for attempt in range(_MAX_RETRIES):
+        try:
+            return client.models.generate_content(**kwargs)
+        except errors.APIError as exc:
+            status = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+            if status not in _RETRY_STATUS or attempt == _MAX_RETRIES - 1:
+                raise
+            delay = min(2 ** attempt, 30)
+            log("script", f"Gemini {status} (attempt {attempt + 1}/{_MAX_RETRIES}); "
+                          f"retrying in {delay}s")
+            time.sleep(delay)
+
 
 def build_prompt(cfg: Config, meta: PaperMeta) -> str:
     words = cfg.target_duration_min * 150
@@ -69,7 +90,8 @@ def _generate(cfg: Config, prompt: str, pdf: Path, extra: str = "") -> str:
             uploaded = client.files.get(name=uploaded.name)
         pdf_part = uploaded
 
-    resp = client.models.generate_content(
+    resp = _generate_content_with_retry(
+        client,
         model=cfg.gemini_model,
         contents=[pdf_part, prompt + ("\n\n" + extra if extra else "")],
         config=types.GenerateContentConfig(
