@@ -11,13 +11,12 @@ import type { Theme } from "../theme";
 
 interface Props {
   paper: PaperMeta;
-  channelName: string;
   theme: Theme;
   fontFamily: string;
 }
 
 /** Opening title card: paper title + authors, fading and lifting in. */
-export const Intro: React.FC<Props> = ({ paper, channelName, theme, fontFamily }) => {
+export const Intro: React.FC<Props> = ({ paper, theme, fontFamily }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
@@ -46,19 +45,6 @@ export const Intro: React.FC<Props> = ({ paper, channelName, theme, fontFamily }
           textAlign: "center",
         }}
       >
-        <div
-          style={{
-            fontFamily,
-            fontWeight: 600,
-            fontSize: 22,
-            letterSpacing: 4,
-            textTransform: "uppercase",
-            color: theme.accent,
-            marginBottom: 34,
-          }}
-        >
-          {channelName}
-        </div>
         <div
           style={{
             fontFamily,

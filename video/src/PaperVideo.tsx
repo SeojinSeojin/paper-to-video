@@ -119,7 +119,7 @@ export const PaperVideo: React.FC<PaperVideoProps> = ({ dataDir, timeline }) => 
       />
 
       <Sequence durationInFrames={introFrames} name="Intro">
-        <Intro paper={timeline.paper} channelName={timeline.channelName} theme={theme} fontFamily={fontFamily} />
+        <Intro paper={timeline.paper} theme={theme} fontFamily={fontFamily} />
       </Sequence>
 
       <Sequence from={introFrames} durationInFrames={narrationFrames} name="Narration">
