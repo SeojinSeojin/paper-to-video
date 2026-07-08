@@ -14,5 +14,13 @@
     "video_url": "https://youtu.be/faQ2NuI8ZXY",
     "title": "SpecGen: AI-Powered Software Specifications Made Easy",
     "at": "2026-07-08T00:07:21Z"
+  },
+  {
+    "url": "https://arxiv.org/abs/2502.14328",
+    "key": "arxiv:2502.14328",
+    "video_id": "QaIKQM_kGFM",
+    "video_url": "https://youtu.be/QaIKQM_kGFM",
+    "title": "LLM이 SAT 문제 해결사를 만든다고? SolSearch 파헤치기!",
+    "at": "2026-07-08T00:30:37Z"
   }
 ]
