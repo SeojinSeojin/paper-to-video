@@ -70,6 +70,9 @@ Style (NotebookLM-like):
 
 Hard requirements:
 - Total spoken length ~{words} words (about {minutes} minute(s)). Do not pad.
+- Each segment's "text" is exactly ONE short sentence — one sentence per frame so \
+it fits on screen. Split any longer thought into multiple segments instead of \
+packing several sentences into one.
 - Alternate speakers naturally; A and B should each speak multiple times.
 - Write natural spoken {lang}. NO markdown, NO stage directions, NO "Host A:" \
 prefixes inside the "text" field — just the spoken words.
