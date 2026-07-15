@@ -41,28 +41,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install system deps (ffmpeg + Chrome libs for Remotion)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            ffmpeg libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2t64 \
-            libxrandr2 libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 \
-            libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2 || \
-          sudo apt-get install -y --no-install-recommends \
-            ffmpeg libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2 \
-            libxrandr2 libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 \
-            libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2
-
       - name: Install Python deps
         run: pip install -r pipeline/requirements.txt
-
-      - name: Install Node deps
-        working-directory: video
-        run: npm ci
 
       - name: Parse request
         id: parse
@@ -92,13 +72,40 @@ jobs:
           gh issue comment "$ISSUE" --body "ℹ️ This paper was already processed — skipping. See \`state/processed.json\`."
           gh issue close "$ISSUE" --reason completed || true
 
-      - name: Ingest + script
+      # Download the PDF(s) first — fails fast on a dead/blocked URL before we spend
+      # minutes installing ffmpeg, Chrome libs and Node deps.
+      - name: Ingest
+        if: steps.check.outputs.status != 'PROCESSED'
+        run: python pipeline/run.py --stage ingest --urls "${{ steps.parse.outputs.urls }}" --lang "${{ steps.parse.outputs.lang }}"
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.status != 'PROCESSED'
+        with:
+          node-version: "20"
+
+      - name: Install system deps (ffmpeg + Chrome libs for Remotion)
+        if: steps.check.outputs.status != 'PROCESSED'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2t64 \
+            libxrandr2 libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 \
+            libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2 || \
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2 \
+            libxrandr2 libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 \
+            libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2
+
+      - name: Install Node deps
+        if: steps.check.outputs.status != 'PROCESSED'
+        working-directory: video
+        run: npm ci
+
+      - name: Script
         if: steps.check.outputs.status != 'PROCESSED'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          python pipeline/run.py --stage ingest --urls "${{ steps.parse.outputs.urls }}" --lang "${{ steps.parse.outputs.lang }}"
-          python pipeline/run.py --stage script --lang "${{ steps.parse.outputs.lang }}"
+        run: python pipeline/run.py --stage script --lang "${{ steps.parse.outputs.lang }}"
 
       - name: Comment — script ready
         if: github.event_name == 'issues' && steps.check.outputs.status != 'PROCESSED'
