@@ -17,9 +17,10 @@ const BAND_TOP = 116;
 const BAND_HEIGHT = 600;
 
 /**
- * The centered figure panel: rounded corners, soft violet glow (layered
- * box-shadow, no hard border), image contained on a slightly-lighter panel,
- * attribution in muted small caps beneath. When there is no figure to show
+ * The centered figure: the image itself carries a soft drop-shadow (a dark
+ * lift plus a violet glow) that hugs its actual shape rather than a
+ * surrounding panel, attribution in muted small caps beneath. When there is
+ * no figure to show
  * (discussion-only segment) it renders a subtle glowing accent orb instead of
  * an empty panel, so the frame still feels intentional.
  */
@@ -50,29 +51,20 @@ export const FigureCard: React.FC<Props> = ({
     >
       {src ? (
         <>
-          <div
+          <Img
+            src={src}
             style={{
-              position: "relative",
-              width: 1120,
-              height: 512,
-              borderRadius: 24,
-              background: theme.panel,
-              boxShadow: [
-                "0 0 0 1px rgba(255,255,255,0.04)",
-                "0 30px 80px -20px rgba(0,0,0,0.7)",
-                `0 0 130px -30px ${theme.accent}`,
-              ].join(", "),
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
+              maxWidth: 1280,
+              maxHeight: 540,
+              objectFit: "contain",
+              borderRadius: 12,
+              // Shadow hugs the actual image shape, not a surrounding panel.
+              filter: [
+                "drop-shadow(0 24px 48px rgba(0,0,0,0.55))",
+                `drop-shadow(0 0 60px ${theme.accent}55)`,
+              ].join(" "),
             }}
-          >
-            <Img
-              src={src}
-              style={{ maxWidth: "92%", maxHeight: "88%", objectFit: "contain", borderRadius: 8 }}
-            />
-          </div>
+          />
           {attribution ? (
             <div
               style={{

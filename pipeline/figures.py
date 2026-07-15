@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 from common import Context, log, read_json, write_json
 from config import Config
 from models import PaperMeta, Script
+from stock import search_image
 
 CAPTION_RE = re.compile(r"\b(?:figure|fig\.?)\s*(\d+)", re.IGNORECASE)
 # A real caption block *starts* with the label ("Figure 3: ..."); this avoids
@@ -193,6 +194,45 @@ def _fallback_card(cfg: Config, number: int, keywords: List[str], dest: Path) ->
     im.save(dest)
 
 
+def _stock_card(cfg: Config, number: int, keywords: List[str], image: bytes, dest: Path) -> None:
+    """Compose a stock photo as a darkened background with a figure/keyword label.
+
+    The photo is illustrative, not the paper's figure — the footer says so, so it
+    reads as a concept visual rather than the real thing.
+    """
+    from PIL import Image, ImageDraw, ImageEnhance, ImageFont
+
+    W, H = 1200, 800
+    accent = _hex(cfg.accent)
+
+    src = Image.open(io.BytesIO(image)).convert("RGB")
+    # cover-fit into W x H (crop overflow), then darken so overlaid text stays legible.
+    scale = max(W / src.width, H / src.height)
+    src = src.resize((max(1, round(src.width * scale)), max(1, round(src.height * scale))))
+    left = (src.width - W) // 2
+    top = (src.height - H) // 2
+    im = src.crop((left, top, left + W, top + H))
+    im = ImageEnhance.Brightness(im).enhance(0.45)
+
+    d = ImageDraw.Draw(im)
+
+    def font(sz: int):
+        try:
+            return ImageFont.load_default(size=sz)
+        except TypeError:
+            return ImageFont.load_default()
+
+    d.text((80, 90), f"FIGURE {number}", font=font(30), fill=accent)
+    d.line([(80, 150), (300, 150)], fill=accent, width=4)
+    y = 230
+    for kw in keywords[:4]:
+        d.ellipse([80, y + 12, 104, y + 36], fill=accent)
+        d.text((130, y), kw, font=font(44), fill=(240, 241, 250))
+        y += 96
+    d.text((80, H - 90), "illustrative image — not the paper's figure", font=font(24), fill=(200, 202, 214))
+    im.save(dest)
+
+
 def _hex(s: str):
     s = s.lstrip("#")
     return tuple(int(s[i : i + 2], 16) for i in (0, 2, 4))
@@ -249,14 +289,25 @@ def _run_one(ctx: Context) -> dict:
                 log("figures", f"figure {num}: {source} -> {dest.name}")
             else:
                 kws = _segment_keywords(script, num)
-                _fallback_card(cfg, num, kws, dest)
-                figures[str(num)] = {
-                    "image": f"figure-{num}.png",
-                    # No arXiv attribution on a synthetic card (avoid over-claiming).
-                    "attribution": None,
-                    "source": "fallback",
-                }
-                log("figures", f"figure {num}: fallback card ({', '.join(kws) or 'n/a'})")
+                stock = search_image(kws)
+                if stock:
+                    _stock_card(cfg, num, kws, stock, dest)
+                    figures[str(num)] = {
+                        "image": f"figure-{num}.png",
+                        # Illustrative stock, not the paper — credit the source, not arXiv.
+                        "attribution": "Illustrative image — Pixabay",
+                        "source": "stock",
+                    }
+                    log("figures", f"figure {num}: stock card ({', '.join(kws) or 'n/a'})")
+                else:
+                    _fallback_card(cfg, num, kws, dest)
+                    figures[str(num)] = {
+                        "image": f"figure-{num}.png",
+                        # No arXiv attribution on a synthetic card (avoid over-claiming).
+                        "attribution": None,
+                        "source": "fallback",
+                    }
+                    log("figures", f"figure {num}: fallback card ({', '.join(kws) or 'n/a'})")
 
     result = {"figures": figures}
     write_json(ctx.figures_json, result)
